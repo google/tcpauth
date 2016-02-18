@@ -4,7 +4,7 @@
  * Example:
  *   echo "correct horse battery staple" > pw.txt
  *   chmod 600 pw.txt
- *   ssh -oProxyCommand="./client-proxy -P pw.txt %h %p" shell.example.com
+ *   ssh -oProxyCommand="./tcpauth-client-proxy -P pw.txt %h %p" shell.example.com
  */
 /*
  * Copyright 2016 Google Inc. All Rights Reserved.

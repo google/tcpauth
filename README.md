@@ -41,7 +41,7 @@ On the server:
 ```shell
 echo "correct horse battery staple" > pw.txt
 chmod 600 pw.txt
-sudo ./wrap -p 12345 -P pw.txt -- /usr/sbin/sshd -i
+sudo ./tcpauth-wrap -p 12345 -P pw.txt -- /usr/sbin/sshd -i
 ```
 
 On the client:
@@ -49,5 +49,5 @@ On the client:
 ```shell
 echo "correct horse battery staple" > pw.txt
 chmod 600 pw.txt
-ssh "-oProxyCommand=./client-proxy -P pw.txt %h %p" -p 12345 shell.example.com
+ssh "-oProxyCommand=./tcpauth-client-proxy -P pw.txt %h %p" -p 12345 shell.example.com
 ```

@@ -5,7 +5,7 @@
  * Example:
  *   echo "correct horse battery staple" > pw.txt
  *   chmod 600 pw.txt
- *   sudo ./wrap -p 12345 -P pw.txt -- /usr/sbin/sshd -i
+ *   sudo ./tcpauth-wrap -p 12345 -P pw.txt -- /usr/sbin/sshd -i
  */
 /*
  * Copyright 2016 Google Inc. All Rights Reserved.
