@@ -1,4 +1,11 @@
 /*
+ * Wrap a server in MD5SIG. The TCP socket connected to the client is
+ * passed on to the binary in fd 0 and 1.
+ *
+ * Example:
+ *   ./wrap -p 12345 -- /usr/sbin/sshd -i
+ */
+/*
  * Copyright 2016 Google Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");

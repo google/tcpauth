@@ -45,5 +45,5 @@ sudo ./wrap -p 12345 -- /usr/sbin/sshd -i
 On the client:
 
 ```shell
-ssh "-oProxyCommand=$(pwd)/proxy %h %p" -p 12345 shell.example.com
+ssh "-oProxyCommand=$(pwd)/client-proxy %h %p" -p 12345 shell.example.com
 ```

@@ -1,4 +1,10 @@
 /*
+ * Proxy on the client side to connect to servers using MD5SIG.
+ *
+ * Example:
+ *   ssh -oProxyCommand="./client-proxy -H %h -p %p" shell.example.com
+ */
+/*
  * Copyright 2016 Google Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
