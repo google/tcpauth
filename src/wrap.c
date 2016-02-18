@@ -37,12 +37,17 @@
 const char* argv0 = NULL;
 const char* password = "secret";
 const char* next_binary = NULL;
-const char** next_args = NULL;
+char* const* next_args = NULL;
+const char* default_opt_H = "::";
 
 void
 usage(int err)
 {
-        printf("Usage!\n");
+        printf("Usage: %s [options] -- /path/to/binary [options to binary...]\n"
+               "    -h          Show this usage text.\n"
+               "    -H <addr>   Address to listen to (default: \"%s\").\n"
+               "    -p <port>   Port to listen on.\n"
+               "", argv0, default_opt_H);
         exit(err);
 }
 
@@ -52,12 +57,15 @@ error(const char* fmt, ...)
         char buffer[256];
         va_list args;
         va_start(args, fmt);
-        vsprintf(buffer, fmt, args);
-        perror(buffer);
+        vsnprintf(buffer, sizeof(buffer), fmt, args);
+        fprintf(stderr, "%s: %s\n", argv0, buffer);
         va_end(args);
         exit(1);
 }
 
+// Handle a new connection that's come in:
+// * Enable MD5SIG
+// * Exec next binary.
 int
 handle(int fd)
 {
@@ -85,9 +93,10 @@ handle(int fd)
         }
         close(fd);
         execvp(next_binary, next_args);
-        error("%s: execv(): %s", argv0, strerror(errno));
+        error("execv(): %s", strerror(errno));
 }
 
+// Main loop listening for connections and calling handle() on them.
 int
 main_loop(int fd)
 {
@@ -113,6 +122,7 @@ main_loop(int fd)
                         handle(newsock);
                         exit(0);
                 default:
+                        close(newsock);
                         break;
                 }
         }
@@ -122,22 +132,29 @@ int
 main(int argc, char** argv)
 {
         const char* port = NULL;  // -p <port>
-        const char* node = NULL;
+        const char* node = default_opt_H;  // -H <addr>
 
         argv0 = argv[0];
 
         int c;
-        while (EOF != (c = getopt(argc, argv, "p:H:"))) {
+        while (EOF != (c = getopt(argc, argv, "hH:p:"))) {
                 switch (c) {
-                case 'p':
-                        port = optarg;
-                        break;
+                case 'h':
+                        usage(0);
                 case 'H':
                         node = optarg;
+                        break;
+                case 'p':
+                        port = optarg;
                         break;
                 default:
                         usage(1);
                 }
+        }
+
+        if (port == NULL) {
+                fprintf(stderr, "%s: Need to specify port (-p)\n", argv0);
+                exit(1);
         }
 
         // Create socket and bind.
@@ -163,7 +180,7 @@ main(int argc, char** argv)
                         }
                         int on = 1;
                         if (0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) {
-                                error("setsockopt(SO_REUSEADDR) failed");
+                                error("setsockopt(SO_REUSEADDR)");
                         }
                         if (!bind(fd, rp->ai_addr, ai->ai_addrlen)) {
                                 break;
@@ -171,19 +188,20 @@ main(int argc, char** argv)
                         if (0 != close(fd)) {
                                 fprintf(stderr, "%s: closing failed socket: %s\n", argv0, strerror(errno));
                         }
+                        fd = -1;
                 }
                 if (0 > fd) {
-                        error("%s: Could not bind to %s %s\n", argv0, node, port);
+                        error("Could not bind to \"%s\" port \"%s\"", node, port);
                 }
                 freeaddrinfo(ai);
 
                 if (listen(fd, 5)) {
-                        error("%s: listen(): %s", argv0, strerror(errno));
+                        error("listen(): %s", strerror(errno));
                 }
         }
 
         { // TODO
-                next_binary = "/usr/sbin/sshd";
+                next_binary = argv[optind];
                 next_args = &argv[optind];
         }
 
