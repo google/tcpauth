@@ -11,7 +11,7 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
-CXXFLAGS="-std=gnu++0x -Wall $CXXFLAGS"
+CFLAGS="-std=gnu11 -Wall $CFLAGS"
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
@@ -20,6 +20,6 @@ echo "
   $PACKAGE_NAME version $PACKAGE_VERSION
   Prefix.........: $prefix
   Debug Build....: $debug
-  C Compiler.....: $CC $CXXFLAGS $CPPFLAGS
+  C Compiler.....: $CC $CFLAGS $CPPFLAGS
   Linker.........: $LD $LDFLAGS $LIBS
 "

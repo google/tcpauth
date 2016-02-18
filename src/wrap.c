@@ -22,6 +22,8 @@
  *
  * This is not an official Google product.
  */
+#include"config.h"
+
 #include<errno.h>
 #include<netdb.h>
 #include<netinet/tcp.h>
@@ -34,7 +36,8 @@
 #include<sys/socket.h>
 #include<sys/types.h>
 
-const char* argv0 = NULL;
+#include"common.h"
+
 const char* password = "secret";
 const char* next_binary = NULL;
 char* const* next_args = NULL;
@@ -49,18 +52,6 @@ usage(int err)
                "    -p <port>   Port to listen on.\n"
                "", argv0, default_opt_H);
         exit(err);
-}
-
-void
-error(const char* fmt, ...)
-{
-        char buffer[256];
-        va_list args;
-        va_start(args, fmt);
-        vsnprintf(buffer, sizeof(buffer), fmt, args);
-        fprintf(stderr, "%s: %s\n", argv0, buffer);
-        va_end(args);
-        exit(1);
 }
 
 // Handle a new connection that's come in:
@@ -78,22 +69,22 @@ handle(int fd)
 
                 if (getpeername(fd,
                                 (struct sockaddr*)&md5sig.tcpm_addr, &t)) {
-                        error("getpeername(): %.100s", strerror(errno));
+                        xerror("getpeername(): %.100s", strerror(errno));
                 }
                 md5sig.tcpm_keylen = strlen(md5sig.tcpm_key);
                 if (-1 == setsockopt(fd,
                                      IPPROTO_TCP, TCP_MD5SIG,
                                      &md5sig, sizeof(md5sig))) {
-                        error("setsockopt(TCP_MD5SIG): %.100s", strerror(errno));
+                        xerror("setsockopt(TCP_MD5SIG): %.100s", strerror(errno));
                 }
         }
         if (0 > dup2(fd, 0)
             || 0 > dup2(fd, 1)) {
-                error("dup2(): %s", strerror(errno));
+                xerror("dup2(): %s", strerror(errno));
         }
         close(fd);
         execvp(next_binary, next_args);
-        error("execv(): %s", strerror(errno));
+        xerror("execv(): %s", strerror(errno));
 }
 
 // Main loop listening for connections and calling handle() on them.
@@ -176,11 +167,12 @@ main(int argc, char** argv)
                 for (rp = ai; rp != NULL; rp = rp->ai_next) {
                         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
                         if (0 > fd) {
+                                fprintf(stderr, "%s: socket(): %s\n", argv0, strerror(errno));
                                 continue;
                         }
                         int on = 1;
                         if (0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) {
-                                error("setsockopt(SO_REUSEADDR)");
+                                fprintf(stderr, "%s: setsockopt(SO_REUSEADDR): %s\n", argv0, strerror(errno));
                         }
                         if (!bind(fd, rp->ai_addr, ai->ai_addrlen)) {
                                 break;
@@ -191,12 +183,12 @@ main(int argc, char** argv)
                         fd = -1;
                 }
                 if (0 > fd) {
-                        error("Could not bind to \"%s\" port \"%s\"", node, port);
+                        xerror("Could not bind to \"%s\" port \"%s\"", node, port);
                 }
                 freeaddrinfo(ai);
 
                 if (listen(fd, 5)) {
-                        error("listen(): %s", strerror(errno));
+                        xerror("listen(): %s", strerror(errno));
                 }
         }
 

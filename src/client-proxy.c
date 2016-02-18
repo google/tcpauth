@@ -2,7 +2,7 @@
  * Proxy on the client side to connect to servers using MD5SIG.
  *
  * Example:
- *   ssh -oProxyCommand="./client-proxy -H %h -p %p" shell.example.com
+ *   ssh -oProxyCommand="./client-proxy %h %p" shell.example.com
  */
 /*
  * Copyright 2016 Google Inc. All Rights Reserved.
@@ -21,6 +21,8 @@
  *
  * This is not an official Google product.
  */
+#include"config.h"
+
 #include<errno.h>
 #include<netdb.h>
 #include<netinet/tcp.h>
@@ -33,28 +35,22 @@
 #include<sys/socket.h>
 #include<sys/types.h>
 
-const char* argv0 = NULL;
+#include"common.h"
+
 const char* password = "secret";
 
 void
 usage(int err)
 {
-        printf("Usage!\n");
+        printf("Usage: %s [options] <host> <port>\n"
+               "    -h          Show this usage text.\n"
+               "", argv0);
         exit(err);
 }
 
-void
-error(const char* fmt, ...)
-{
-        char buffer[256];
-        va_list args;
-        va_start(args, fmt);
-        vsprintf(buffer, fmt, args);
-        fprintf(stderr, "%s\n", buffer);
-        va_end(args);
-        exit(1);
-}
-
+// Handle a new connection after connect() returns.
+// * Enable MD5SIG
+// * Funnel data back and forth.
 int
 handle(int fd)
 {
@@ -63,17 +59,17 @@ handle(int fd)
                 socklen_t t = sizeof(struct sockaddr_storage);
 
                 memset(&md5sig, 0, sizeof(md5sig));
-                strncpy(md5sig.tcpm_key, password, TCP_MD5SIG_MAXKEYLEN);
+                strncpy((char*)md5sig.tcpm_key, password, TCP_MD5SIG_MAXKEYLEN);
 
                 if (getpeername(fd,
                                 (struct sockaddr*)&md5sig.tcpm_addr, &t)) {
-                        error("getpeername(): %.100s", strerror(errno));
+                        xerror("getpeername(): %.100s", strerror(errno));
                 }
-                md5sig.tcpm_keylen = strlen(md5sig.tcpm_key);
+                md5sig.tcpm_keylen = strlen((char*)md5sig.tcpm_key);
                 if (-1 == setsockopt(fd,
                                      IPPROTO_TCP, TCP_MD5SIG,
                                      &md5sig, sizeof(md5sig))) {
-                        error("setsockopt(TCP_MD5SIG): %.100s", strerror(errno));
+                        xerror("setsockopt(TCP_MD5SIG): %.100s", strerror(errno));
                 }
         }
         int src_fd;
@@ -81,7 +77,7 @@ handle(int fd)
         pid_t pid;
         switch (pid = fork()) {
         case -1:
-                error("fork(): %s", strerror(errno));
+                xerror("fork(): %s", strerror(errno));
         case 0:
                 src_fd = fd;
                 dst_fd = STDOUT_FILENO;
@@ -95,45 +91,50 @@ handle(int fd)
                 char buf[1024];
                 ssize_t n = read(src_fd, buf, sizeof(buf));
                 if (0 > n) {
-                        error("read(%d): %s", src_fd, strerror(errno));
+                        xerror("read(%d): %s", src_fd, strerror(errno));
                 }
                 if (n == 0) {
                         if (0 > close(src_fd)) {
-                                error("close(): %s", strerror(errno));
+                                xerror("close(): %s", strerror(errno));
                         }
                         if (0 > close(dst_fd)) {
-                                error("close(): %s", strerror(errno));
+                                xerror("close(): %s", strerror(errno));
                         }
                 }
                 const char* p = buf;
                 while (n > 0) {
                         ssize_t wn = write(dst_fd, p, n);
                         if (0 > wn) {
-                                error("write(): %s", strerror(errno));
+                                xerror("write(): %s", strerror(errno));
                         }
                         n -= wn;
                         p += wn;
                 }
         }
+        // TODO: when one process dies, kill the other.
 }
 
 int
 main(int argc, char** argv)
 {
-
         argv0 = argv[0];
 
         int c;
-        while (EOF != (c = getopt(argc, argv, "p:H:"))) {
+        while (EOF != (c = getopt(argc, argv, "h"))) {
                 switch (c) {
+                case 'h':
+                        usage(0);
                 default:
                         usage(1);
                 }
         }
 
+        if (optind + 2 != argc) {
+                fprintf(stderr, "%s: Provide exactly two non-option args: host and port.\n", argv0);
+                exit(1);
+        }
         const char* node = argv[optind];
         const char* port = argv[optind+1];
-
 
         // Create socket and bind.
         int fd = -1;
@@ -146,35 +147,26 @@ main(int argc, char** argv)
                 struct addrinfo *ai;
 
                 if (0 != getaddrinfo(node, port, &hints, &ai)) {
-                        fprintf(stderr, "%s: getaddrinfo(%s, %s): %s\n", argv0, node, port, strerror(errno));
-                        exit(1);
+                        xerror("getaddrinfo(%s, %s): %s", node, port, strerror(errno));
                 }
 
-                struct addrinfo *rp;
-                for (rp = ai; rp != NULL; rp = rp->ai_next) {
+                for (struct addrinfo *rp = ai; rp != NULL; rp = rp->ai_next) {
                         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
                         if (0 > fd) {
+                                fprintf(stderr, "%s: socket(): %s\n", argv0, strerror(errno));
                                 continue;
-                        }
-                        if (0) {
-                                int on = 1;
-                                if (0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) {
-                                        error("setsockopt(SO_REUSEADDR) failed");
-                                }
-                                if (!bind(fd, rp->ai_addr, ai->ai_addrlen)) {
-                                        break;
-                                }
-                                if (0 != close(fd)) {
-                                        fprintf(stderr, "%s: closing failed socket: %s\n", argv0, strerror(errno));
-                                }
                         }
                         if (!connect(fd, rp->ai_addr, ai->ai_addrlen)) {
                                 break;
                         }
-                        fprintf(stderr, "%s: connect failed: %s", argv0, strerror(errno));
+                        fprintf(stderr, "%s: connect failed: %s\n", argv0, strerror(errno));
+                        if (0 != close(fd)) {
+                                fprintf(stderr, "%s: closing failed socket: %s\n", argv0, strerror(errno));
+                        }
+                        fd = -1;
                 }
                 if (0 > fd) {
-                        error("%s: Could not bind to %s %s\n", argv0, node, port);
+                        xerror("%s: Could not connect to %s %s\n", argv0, node, port);
                 }
                 freeaddrinfo(ai);
         }
