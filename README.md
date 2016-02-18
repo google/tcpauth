@@ -39,11 +39,15 @@ Example of running an SSH server on port 12345.
 On the server:
 
 ```shell
-sudo ./wrap -p 12345 -- /usr/sbin/sshd -i
+echo "correct horse battery staple" > pw.txt
+chmod 600 pw.txt
+sudo ./wrap -p 12345 -P pw.txt -- /usr/sbin/sshd -i
 ```
 
 On the client:
 
 ```shell
-ssh "-oProxyCommand=$(pwd)/client-proxy %h %p" -p 12345 shell.example.com
+echo "correct horse battery staple" > pw.txt
+chmod 600 pw.txt
+ssh "-oProxyCommand=./client-proxy -P pw.txt %h %p" -p 12345 shell.example.com
 ```

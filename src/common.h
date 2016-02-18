@@ -17,3 +17,6 @@
  */
 extern const char* argv0;
 void xerror(const char* fmt, ...);
+
+// Get a copy of the password. Caller free()s.
+char* get_password(const char* opt);

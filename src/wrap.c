@@ -3,7 +3,9 @@
  * passed on to the binary in fd 0 and 1.
  *
  * Example:
- *   ./wrap -p 12345 -- /usr/sbin/sshd -i
+ *   echo "correct horse battery staple" > pw.txt
+ *   chmod 600 pw.txt
+ *   sudo ./wrap -p 12345 -P pw.txt -- /usr/sbin/sshd -i
  */
 /*
  * Copyright 2016 Google Inc. All Rights Reserved.
@@ -38,18 +40,19 @@
 
 #include"common.h"
 
-const char* password = "secret";
 const char* next_binary = NULL;
 char* const* next_args = NULL;
 const char* default_opt_H = "::";
+char* password = NULL;
 
 void
 usage(int err)
 {
         printf("Usage: %s [options] -- /path/to/binary [options to binary...]\n"
-               "    -h          Show this usage text.\n"
-               "    -H <addr>   Address to listen to (default: \"%s\").\n"
-               "    -p <port>   Port to listen on.\n"
+               "    -h                   Show this usage text.\n"
+               "    -H <addr>            Address to listen to (default: \"%s\").\n"
+               "    -p <port>            Port to listen on.\n"
+               "    -P <password file>   File containing MD5SIG password.\n"
                "", argv0, default_opt_H);
         exit(err);
 }
@@ -124,11 +127,12 @@ main(int argc, char** argv)
 {
         const char* port = NULL;  // -p <port>
         const char* node = default_opt_H;  // -H <addr>
+        const char* password_file = NULL;  // -P <password file>
 
         argv0 = argv[0];
 
         int c;
-        while (EOF != (c = getopt(argc, argv, "hH:p:"))) {
+        while (EOF != (c = getopt(argc, argv, "hH:p:P:"))) {
                 switch (c) {
                 case 'h':
                         usage(0);
@@ -138,6 +142,9 @@ main(int argc, char** argv)
                 case 'p':
                         port = optarg;
                         break;
+                case 'P':
+                        password_file = optarg;
+                        break;
                 default:
                         usage(1);
                 }
@@ -146,6 +153,12 @@ main(int argc, char** argv)
         if (port == NULL) {
                 fprintf(stderr, "%s: Need to specify port (-p)\n", argv0);
                 exit(1);
+        }
+
+        {
+                password = get_password(password_file);
+                next_binary = argv[optind];
+                next_args = &argv[optind];
         }
 
         // Create socket and bind.
@@ -190,11 +203,6 @@ main(int argc, char** argv)
                 if (listen(fd, 5)) {
                         xerror("listen(): %s", strerror(errno));
                 }
-        }
-
-        { // TODO
-                next_binary = argv[optind];
-                next_args = &argv[optind];
         }
 
         {

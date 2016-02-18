@@ -2,7 +2,9 @@
  * Proxy on the client side to connect to servers using MD5SIG.
  *
  * Example:
- *   ssh -oProxyCommand="./client-proxy %h %p" shell.example.com
+ *   echo "correct horse battery staple" > pw.txt
+ *   chmod 600 pw.txt
+ *   ssh -oProxyCommand="./client-proxy -P pw.txt %h %p" shell.example.com
  */
 /*
  * Copyright 2016 Google Inc. All Rights Reserved.
@@ -37,13 +39,14 @@
 
 #include"common.h"
 
-const char* password = "secret";
+const char* password = NULL;
 
 void
 usage(int err)
 {
         printf("Usage: %s [options] <host> <port>\n"
-               "    -h          Show this usage text.\n"
+               "    -h                   Show this usage text.\n"
+               "    -P <password file>   File containing MD5SIG password.\n"
                "", argv0);
         exit(err);
 }
@@ -117,13 +120,17 @@ handle(int fd)
 int
 main(int argc, char** argv)
 {
+        const char* password_file = NULL;  // -P <password file>
         argv0 = argv[0];
 
         int c;
-        while (EOF != (c = getopt(argc, argv, "h"))) {
+        while (EOF != (c = getopt(argc, argv, "hP:"))) {
                 switch (c) {
                 case 'h':
                         usage(0);
+                case 'P':
+                        password_file = optarg;
+                        break;
                 default:
                         usage(1);
                 }
@@ -135,6 +142,7 @@ main(int argc, char** argv)
         }
         const char* node = argv[optind];
         const char* port = argv[optind+1];
+        password = get_password(password_file);
 
         // Create socket and bind.
         int fd = -1;
