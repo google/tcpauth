@@ -1,5 +1,5 @@
 AC_PREREQ(2.61)
-AC_INIT(arping, 2.16, thomas@habets.se)
+AC_INIT(tcpauth, 0.01, habets@google.com)
 AC_CANONICAL_SYSTEM
 AC_CONFIG_SRCDIR([src/wrap.c])
 AM_INIT_AUTOMAKE

@@ -1,6 +1,6 @@
 # tcpauth
 
-Copyright 2015 Google Inc. All Rights Reserved.
+Copyright 2016 Google Inc. All Rights Reserved.
 
 https://github.com/google/tcpauth
 
