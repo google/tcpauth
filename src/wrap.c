@@ -57,7 +57,7 @@ usage(int err)
 // Handle a new connection that's come in:
 // * Enable MD5SIG
 // * Exec next binary.
-int
+void
 handle(int fd)
 {
         if (1) {
@@ -65,13 +65,13 @@ handle(int fd)
                 socklen_t t = sizeof(struct sockaddr_storage);
 
                 memset(&md5sig, 0, sizeof(md5sig));
-                strncpy(md5sig.tcpm_key, password, TCP_MD5SIG_MAXKEYLEN);
+                strncpy((char*)md5sig.tcpm_key, password, TCP_MD5SIG_MAXKEYLEN);
 
                 if (getpeername(fd,
                                 (struct sockaddr*)&md5sig.tcpm_addr, &t)) {
                         xerror("getpeername(): %.100s", strerror(errno));
                 }
-                md5sig.tcpm_keylen = strlen(md5sig.tcpm_key);
+                md5sig.tcpm_keylen = strlen((char*)md5sig.tcpm_key);
                 if (-1 == setsockopt(fd,
                                      IPPROTO_TCP, TCP_MD5SIG,
                                      &md5sig, sizeof(md5sig))) {
@@ -111,7 +111,7 @@ main_loop(int fd)
                         continue;
                 case 0:
                         handle(newsock);
-                        exit(0);
+                        exit(1);
                 default:
                         close(newsock);
                         break;
