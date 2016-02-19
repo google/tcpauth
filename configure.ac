@@ -11,6 +11,8 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
+AC_CHECK_LIB([pthread], [pthread_create])
+
 CFLAGS="-std=gnu11 -Wall $CFLAGS"
 
 AC_CONFIG_FILES([Makefile])

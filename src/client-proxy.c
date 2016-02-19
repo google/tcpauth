@@ -32,6 +32,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<pthread.h>
 #include<unistd.h>
 
 #include<sys/socket.h>
@@ -49,6 +50,70 @@ usage(int err)
                "    -P <password file>   File containing MD5SIG password.\n"
                "", argv0);
         exit(err);
+}
+
+typedef struct {
+        int src, dst;
+} reader;
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static int shutting_down_var = 0;
+static void
+set_shutting_down()
+{
+        int n;
+        if ((n = pthread_mutex_lock(&mutex))) {
+                xerror("mutex lock error: code %d", n);
+        }
+        shutting_down_var = 1;
+        if ((n = pthread_mutex_unlock(&mutex))) {
+                xerror("mutex lock error: code %d", n);
+        }
+}
+
+static int
+shutting_down()
+{
+        int n;
+        int ret;
+        if ((n = pthread_mutex_lock(&mutex))) {
+                xerror("mutex lock error: code %d", n);
+        }
+        ret = shutting_down_var;
+        if ((n = pthread_mutex_unlock(&mutex))) {
+                xerror("mutex lock error: code %d", n);
+        }
+        return ret;
+}
+
+// read data from one and and write to the other.
+static void*
+reader_main(void* rin)
+{
+        const reader* r = (reader*)rin;
+        char buf[1024];
+        for (;;) {
+                ssize_t n = read(r->src, buf, sizeof(buf));
+                if (shutting_down()) {
+                        return NULL;
+                }
+                if (n == 0) {
+                        set_shutting_down();
+                        return NULL;
+                }
+                if (0 > n) {
+                        xerror("read(%d): %s", r->src, strerror(errno));
+                }
+                const char* p = buf;
+                while (n > 0) {
+                        const ssize_t wn = write(r->dst, p, n);
+                        if (0 > wn) {
+                                xerror("write(): %s", strerror(errno));
+                        }
+                        n -= wn;
+                        p += wn;
+                }
+        }
 }
 
 // Handle a new connection after connect() returns.
@@ -75,46 +140,26 @@ handle(int fd)
                         xerror("setsockopt(TCP_MD5SIG): %.100s", strerror(errno));
                 }
         }
-        int src_fd;
-        int dst_fd;
-        pid_t pid;
-        switch (pid = fork()) {
-        case -1:
-                xerror("fork(): %s", strerror(errno));
-        case 0:
-                src_fd = fd;
-                dst_fd = STDOUT_FILENO;
-                break;
-        default:
-                src_fd = STDIN_FILENO;
-                dst_fd = fd;
-                break;
+
+        // Start one half of the data shuffling.
+        pthread_t other;
+        reader other_r;
+        other_r.src = fd;
+        other_r.dst = STDOUT_FILENO;
+        if (pthread_create(&other, NULL, &reader_main, &other_r)) {
+                xerror("pthread_create(): %s", strerror(errno));
         }
-        for (;;) {
-                char buf[1024];
-                ssize_t n = read(src_fd, buf, sizeof(buf));
-                if (0 > n) {
-                        xerror("read(%d): %s", src_fd, strerror(errno));
-                }
-                if (n == 0) {
-                        if (0 > close(src_fd)) {
-                                xerror("close(): %s", strerror(errno));
-                        }
-                        if (0 > close(dst_fd)) {
-                                xerror("close(): %s", strerror(errno));
-                        }
-                }
-                const char* p = buf;
-                while (n > 0) {
-                        ssize_t wn = write(dst_fd, p, n);
-                        if (0 > wn) {
-                                xerror("write(): %s", strerror(errno));
-                        }
-                        n -= wn;
-                        p += wn;
-                }
+
+        // Start the other half.
+        reader this_r;
+        this_r.src = STDIN_FILENO;
+        this_r.dst = fd;
+        reader_main(&this_r);
+        int n;
+        if ((n = pthread_join(other, NULL))) {
+                xerror("pthread_join: %s", strerror(n));
         }
-        // TODO: when one process dies, kill the other.
+        exit(0);
 }
 
 int
@@ -158,7 +203,7 @@ main(int argc, char** argv)
                         xerror("getaddrinfo(%s, %s): %s", node, port, strerror(errno));
                 }
 
-                for (struct addrinfo *rp = ai; rp != NULL; rp = rp->ai_next) {
+                for (const struct addrinfo *rp = ai; rp != NULL; rp = rp->ai_next) {
                         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
                         if (0 > fd) {
                                 fprintf(stderr, "%s: socket(): %s\n", argv0, strerror(errno));

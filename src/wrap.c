@@ -176,14 +176,13 @@ main(int argc, char** argv)
                         exit(1);
                 }
 
-                struct addrinfo *rp;
-                for (rp = ai; rp != NULL; rp = rp->ai_next) {
+                for (const struct addrinfo *rp = ai; rp != NULL; rp = rp->ai_next) {
                         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
                         if (0 > fd) {
                                 fprintf(stderr, "%s: socket(): %s\n", argv0, strerror(errno));
                                 continue;
                         }
-                        int on = 1;
+                        const int on = 1;
                         if (0 > setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) {
                                 fprintf(stderr, "%s: setsockopt(SO_REUSEADDR): %s\n", argv0, strerror(errno));
                         }
