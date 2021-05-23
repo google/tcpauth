@@ -6,7 +6,7 @@ https://github.com/google/tcpauth
 
 ## Introduction
 
-tcpauth allows you to wrap TCP connections in RFC2386 MD5 signatures, to prevent
+tcpauth allows you to wrap TCP connections in RFC2385 MD5 signatures, to prevent
 any attacker from talking to a server without first having the shared secret.
 
 This protects against any preauth attacks in the server application itself. You
